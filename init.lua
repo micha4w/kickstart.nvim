@@ -98,8 +98,11 @@ do
   vim.g.mapleader = ' '
   vim.g.maplocalleader = ' '
 
+  -- Because fish has a slow startup time
+  vim.opt_local.shell = '/bin/sh'
+
   -- Set to true if you have a Nerd Font installed and selected in the terminal
-  vim.g.have_nerd_font = false
+  vim.g.have_nerd_font = true
 
   -- [[ Setting options ]]
   --  See `:help vim.o`
@@ -110,7 +113,7 @@ do
   vim.o.number = true
   -- You can also add relative line numbers, to help with jumping.
   --  Experiment for yourself to see if you like it!
-  -- vim.o.relativenumber = true
+  vim.o.relativenumber = true
 
   -- Enable mouse mode, can be useful for resizing splits for example!
   vim.o.mouse = 'a'
@@ -171,6 +174,14 @@ do
   -- instead raise a dialog asking if you wish to save the current file(s)
   -- See `:help 'confirm'`
   vim.o.confirm = true
+
+  -- single status line for all splits
+  vim.opt.laststatus = 3
+
+  -- invert g behavior when searching
+  vim.opt.gdefault = true
+
+  vim.o.winborder = 'rounded'
 end
 
 -- ============================================================
@@ -180,10 +191,31 @@ end
 do
   -- [[ Basic Keymaps ]]
   --  See `:help vim.keymap.set()`
+  vim.keymap.set('', 'ö', ':', { desc = 'Open Command' })
+  vim.keymap.set('i', '<M-BS>', '<C-W>', { silent = true, desc = 'Delete last word' })
 
-  -- Clear highlights on search when pressing <Esc> in normal mode
-  --  See `:help hlsearch`
-  vim.keymap.set('n', '<Esc>', '<cmd>nohlsearch<CR>')
+  -- Close hover/floating windows and clear search highlights with <Esc>
+  vim.keymap.set('n', '<Esc>', function()
+    vim.cmd 'nohlsearch'
+
+    -- If focused inside a floating window (e.g. after KK), close it
+    local win = vim.api.nvim_get_current_win()
+    if vim.api.nvim_win_get_config(win).relative ~= '' then
+      vim.api.nvim_win_close(win, false)
+      return
+    end
+
+    -- for _, win in ipairs(vim.api.nvim_tabpage_list_wins(0)) do
+    --   local config = vim.api.nvim_win_get_config(win)
+    --   -- If it's a floating window (relative is not empty)
+    --   if config.relative ~= '' then
+    --     pcall(vim.api.nvim_win_close, win, true)
+    --   end
+    -- end
+
+    -- If in normal buffer with a floating hover window open, close all floats
+    vim.cmd 'silent! fclose!'
+  end, { desc = 'Clear search highlights and close floating windows', nowait = true })
 
   -- Diagnostic Config & Keymaps
   --  See `:help vim.diagnostic.Opts`
@@ -217,7 +249,7 @@ do
   --
   -- NOTE: This won't work in all terminal emulators/tmux/etc. Try your own mapping
   -- or just use <C-\><C-n> to exit terminal mode
-  vim.keymap.set('t', '<Esc><Esc>', '<C-\\><C-n>', { desc = 'Exit terminal mode' })
+  -- vim.keymap.set('t', '<Esc><Esc>', '<C-\\><C-n>', { desc = 'Exit terminal mode' })
 
   -- TIP: Disable arrow keys in normal mode
   -- vim.keymap.set('n', '<left>', '<cmd>echo "Use h to move!!"<CR>')
@@ -251,6 +283,7 @@ do
     group = vim.api.nvim_create_augroup('kickstart-highlight-yank', { clear = true }),
     callback = function() vim.hl.on_yank() end,
   })
+
 end
 
 -- ============================================================
@@ -365,7 +398,7 @@ do
   vim.pack.add { gh 'folke/which-key.nvim' }
   require('which-key').setup {
     -- Delay between pressing a key and opening which-key (milliseconds)
-    delay = 0,
+    delay = 1000,
     icons = { mappings = vim.g.have_nerd_font },
     -- Document existing key chains
     spec = {
@@ -374,6 +407,9 @@ do
       { '<leader>h', group = 'Git [H]unk', mode = { 'n', 'v' } }, -- Enable gitsigns recommended keymaps first
       { 'gr', group = 'LSP Actions', mode = { 'n' } },
     },
+    -- triggers = {
+    --   { '<Esc>', mode = { 'n', 'v' } },
+    -- },
   }
 
   -- [[ Colorscheme ]]
@@ -382,18 +418,18 @@ do
   -- change the command under that to load whatever the name of that colorscheme is.
   --
   -- If you want to see what colorschemes are already installed, you can use `:Telescope colorscheme`.
-  vim.pack.add { gh 'folke/tokyonight.nvim' }
-  ---@diagnostic disable-next-line: missing-fields
-  require('tokyonight').setup {
-    styles = {
-      comments = { italic = false }, -- Disable italics in comments
-    },
-  }
+  vim.pack.add { gh 'catppuccin/nvim' }
+  require('catppuccin').setup { }
 
   -- Load the colorscheme here.
   -- Like many other themes, this one has different styles, and you could load
   -- any other, such as 'tokyonight-storm', 'tokyonight-moon', or 'tokyonight-day'.
-  vim.cmd.colorscheme 'tokyonight-night'
+  vim.cmd.colorscheme 'catppuccin-mocha'
+  
+  -- Transparent background
+  vim.cmd.hi 'Comment gui=none'
+  vim.cmd.hi 'Normal guibg=NONE ctermbg=NONE'
+  vim.cmd.hi 'NormalNC guibg=NONE ctermbg=NONE'
 
   -- Highlight todo, notes, etc in comments
   vim.pack.add { gh 'folke/todo-comments.nvim' }
@@ -422,6 +458,15 @@ do
       around_next = 'aa',
       inside_next = 'ii',
     },
+    custom_textobjects = {
+      e = function()
+        return {
+          from = { line = 1, col = 1 },
+          to = { line = vim.api.nvim_buf_line_count(0), col = 1 },
+          vis_mode = 'V',
+        }
+      end,
+    },
     n_lines = 500,
   }
 
@@ -430,7 +475,7 @@ do
   -- - saiw) - [S]urround [A]dd [I]nner [W]ord [)]Paren
   -- - sd'   - [S]urround [D]elete [']quotes
   -- - sr)'  - [S]urround [R]eplace [)] [']
-  require('mini.surround').setup()
+  -- require('mini.surround').setup()
 
   -- Simple and easy statusline.
   --  You could remove this setup call if you don't like it,
@@ -443,10 +488,54 @@ do
   -- default behavior. For example, here we set the section for
   -- cursor location to LINE:COLUMN
   ---@diagnostic disable-next-line: duplicate-set-field
-  statusline.section_location = function() return '%2l:%-2v' end
+  statusline.section_location = function() return '%2l:%-2v %2p%%' end
 
   -- ... and there is more!
   --  Check out: https://github.com/nvim-mini/mini.nvim
+  vim.pack.add { gh 'stevearc/oil.nvim' }
+  require('oil').setup {
+    watch_for_changes = true,
+    skip_confirm_for_simple_edits = true,
+    view_options = {
+      show_hidden = true,
+    },
+    float = {
+      padding = 4,
+      border = 'rounded',
+    },
+    keymaps = {
+      ['<Esc>'] = 'actions.close',
+      -- ['<C-j>'] = '',
+      -- ['<C-k>'] = '',
+    },
+  }
+
+  vim.api.nvim_set_keymap('n', '<leader>o', '', {
+    noremap = true,
+    callback = function()
+      local oil = require 'oil'
+      local util = require 'oil.util'
+
+      oil.toggle_float()
+      util.run_after_load(0, function()
+        oil.open_preview()
+      end)
+    end,
+  })
+
+  -- vim.pack.add { gh 'mrcjkb/rustaceanvim' }
+  vim.pack.add { gh 'alexghergh/nvim-tmux-navigation' }
+  require('nvim-tmux-navigation').setup {
+    disable_when_zoomed = true, -- defaults to false
+    keybindings = {
+      left = '<C-h>',
+      down = '<C-j>',
+      up = '<C-k>',
+      right = '<C-l>',
+      -- last_active = '<C-\\>',
+      -- next = '<C-Space>',
+    },
+  }
 end
 
 -- ============================================================
@@ -490,15 +579,22 @@ do
   vim.pack.add(telescope_plugins)
 
   -- See `:help telescope` and `:help telescope.setup()`
+  local actions = require 'telescope.actions'
   require('telescope').setup {
     -- You can put your default mappings / updates / etc. in here
     --  All the info you're looking for is in `:help telescope.setup()`
     --
-    -- defaults = {
-    --   mappings = {
-    --     i = { ['<c-enter>'] = 'to_fuzzy_refine' },
-    --   },
-    -- },
+    defaults = {
+      -- mappings = {
+      --   i = { ['<c-enter>'] = 'to_fuzzy_refine' },
+      -- },
+      mappings = {
+        i = {
+          ['<C-j>'] = actions.move_selection_next,
+          ['<C-k>'] = actions.move_selection_previous,
+        },
+      },
+    },
     -- pickers = {}
     extensions = {
       ['ui-select'] = { require('telescope.themes').get_dropdown() },
@@ -540,7 +636,7 @@ do
       -- Jump to the definition of the word under your cursor.
       -- This is where a variable was first declared, or where a function is defined, etc.
       -- To jump back, press <C-t>.
-      vim.keymap.set('n', 'grd', builtin.lsp_definitions, { buffer = buf, desc = '[G]oto [D]efinition' })
+      vim.keymap.set('n', 'gd', builtin.lsp_definitions, { buffer = buf, desc = '[G]oto [D]efinition' })
 
       -- Fuzzy find all the symbols in your current document.
       -- Symbols are things like variables, functions, types, etc.
@@ -553,7 +649,7 @@ do
       -- Jump to the type of the word under your cursor.
       -- Useful when you're not sure what type a variable is and you want to see
       -- the definition of its *type*, not where it was *defined*.
-      vim.keymap.set('n', 'grt', builtin.lsp_type_definitions, { buffer = buf, desc = '[G]oto [T]ype Definition' })
+      vim.keymap.set('n', 'gt', builtin.lsp_type_definitions, { buffer = buf, desc = '[G]oto [T]ype Definition' })
     end,
   })
 
@@ -642,11 +738,11 @@ do
 
       -- Execute a code action, usually your cursor needs to be on top of an error
       -- or a suggestion from your LSP for this to activate.
-      map('gra', vim.lsp.buf.code_action, '[G]oto Code [A]ction', { 'n', 'x' })
+      map('ga', vim.lsp.buf.code_action, '[G]oto Code [A]ction', { 'n', 'x' })
 
       -- WARN: This is not Goto Definition, this is Goto Declaration.
       --  For example, in C this would take you to the header.
-      map('grD', vim.lsp.buf.declaration, '[G]oto [D]eclaration')
+      map('gD', vim.lsp.buf.declaration, '[G]oto [D]eclaration')
 
       -- The following two autocommands are used to highlight references of the
       -- word under your cursor when your cursor rests there for a little while.
@@ -692,16 +788,20 @@ do
   --  See `:help lsp-config` for information about keys and how to configure
   ---@type table<string, vim.lsp.Config>
   local servers = {
-    -- clangd = {},
+    clangd = {},
     -- gopls = {},
     -- pyright = {},
-    -- rust_analyzer = {},
+    rust_analyzer = {},
     --
     -- Some languages (like typescript) have entire language plugins that can be useful:
     --    https://github.com/pmizio/typescript-tools.nvim
     --
     -- But for many setups, the LSP (`ts_ls`) will work just fine
-    -- ts_ls = {},
+    ts_ls = {},
+    -- scss = {},
+    typos_lsp = {
+      -- autostart = false,
+    },
 
     stylua = {}, -- Used to format Lua code
 
@@ -736,6 +836,9 @@ do
         },
       },
     },
+
+    ty = {},
+    ruff = {},
   }
 
   vim.pack.add {
@@ -771,6 +874,17 @@ do
     vim.lsp.config(name, server)
     vim.lsp.enable(name)
   end
+
+  vim.lsp.config("qmlls", { 
+    cmd = {
+      "/nix/store/zgvv1g88pdsh1vvwg1z7v0gy68ri5mk5-qtdeclarative-6.11.1/bin/qmlls",
+      "-E",
+      "-I", "/nix/store/ryfyyhn3xnx3nwbknjl6kihxfkzc6w5m-quickshell-0.3.0/lib/qt-6/qml/",
+      "-I", "/nix/store/zgvv1g88pdsh1vvwg1z7v0gy68ri5mk5-qtdeclarative-6.11.1/lib/qt-6/qml/",
+    },
+    filetypes = { 'qml', 'qmljs' },
+  })
+  vim.lsp.enable("qmlls")
 end
 
 -- ============================================================
@@ -856,6 +970,10 @@ do
       --
       -- See `:help blink-cmp-config-keymap` for defining your own keymap
       preset = 'default',
+
+      ['<CR>'] = { 'accept', 'fallback' },
+      ['<C-j>'] = { 'select_next', 'fallback' },
+      ['<C-k>'] = { 'select_prev', 'fallback' },
 
       -- For more advanced Luasnip keymaps (e.g. selecting choice nodes, expansion) see:
       --    https://github.com/L3MON4D3/LuaSnip?tab=readme-ov-file#keymaps
